@@ -2,10 +2,13 @@
 #![no_main] // 不使用 main 函数
 
 use core::panic::PanicInfo;
+use core::fmt::Write;
+mod vga_buffer;
 
 /// This function is called on panic.
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+    println!("{}", _info);
     loop {}
 }
 
@@ -14,14 +17,13 @@ static HELLO: &[u8] = b"Hello World!";
 
 #[no_mangle] // 不要重命名函数的名称
 pub extern "C" fn _start() -> ! {
-    let vga_buffer = 0xb8000 as *mut u8;
-
-    for (i, &byte) in HELLO.iter().enumerate() {
-        unsafe {
-            *vga_buffer.offset(i as isize * 2) = byte;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0xb;
-        }
-    }
+    //vga_buffer::print_something();
+    //vga_buffer::WRITER.lock().write_byte(b'H');
+    //vga_buffer::WRITER.lock().write_string("ello!\n");
+    //write!(vga_buffer::WRITER.lock(), "welcome to {}", "Handan").unwrap();
+    //println!("2022-01-04");
+    println!("Hello world!");
+    panic!("Some panic message.");
 
     loop {}
 }
