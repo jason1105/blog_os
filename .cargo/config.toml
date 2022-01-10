@@ -5,5 +5,5 @@ build-std = ["core", "compiler_builtins"] # 重新编译core, 因为我们没有
 [build]
 target = "x86_64-blog_os.json" # 目标系统描述
 
-[target.'cfg(target_os = "none")']
-runner = "bootimage runner" # 使用 carog run 来运行
+[target.'cfg(target_os = "none")'] # 应用于 target_os = "none" 的 target.
+runner = "bootimage runner" # build 成功后, carog run 调用该 runner 字段指定的命令, 并将目标系统的可执行文件作为第一个参数传递进去. bootimage 是一个工具, 用来编译内核和 bootloader 并将两者进行 link.
