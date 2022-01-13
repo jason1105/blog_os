@@ -7,7 +7,7 @@
 use core::panic::PanicInfo;
 
 use blog_os::println; // 引用宏不用包含 module 名称
-use blog_os::serial_println; // 引用宏不用包含 module 名称
+use blog_os::serial_println;
 
 /// This function is called on panic.
 #[cfg(not(test))] // conditional compilation
@@ -28,11 +28,16 @@ fn panic(_info: &PanicInfo) -> ! {
 pub extern "C" fn _start() -> ! { // cargo run 和 cargo test 都会进入这里
     println!("Hello world!");
     
-    serial_println!("Start unittests for main.");
+    blog_os::init();
+    x86_64::instructions::interrupts::int3();
     
     #[cfg(test)]
-    test_main(); // binary crate 单元测试入口
+    {
+        serial_println!("Start unittests for main!");
+        test_main(); // binary crate 单元测试入口
+    }
     
+    println!("It did not crash!");
     loop {}
 }
 #[test_case]

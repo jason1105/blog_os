@@ -3,11 +3,13 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"] // Rust 生成一个 main 方法调用 test_runner, 但我们的程序不使用 main 函数, 所以只能在 _start 中调用 main 函数, 但 main 函数是被系统调用的, 这里把 main 改名为 test_main, 在 test_main 中调用 test_runner, 但程序的入口还是 _start, 所以要在 _start 中调用 test_main
+#![feature(abi_x86_interrupt)] // 开启x86-interrupt calling convention, 因为is still unstable
 
 use core::panic::PanicInfo;
 
 pub mod vga_buffer; // 其中标记有 #[test_case] 的 module 都会被测试
 pub mod serial; // 其中标记有 #[test_case] 的 module 都会被测试
+pub mod interrupts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -41,7 +43,7 @@ where T: Fn()
 
 // #[cfg(test)] // we should call this from main.rs or tests folder.
 pub fn test_runner(tests: &[&dyn Testable]) { // slice of trait object
-    serial_println!("Running {} tests ------ in lib", tests.len());
+    serial_println!("Running {} tests.", tests.len());
     for test in tests {
         test.run();
     }
@@ -51,7 +53,8 @@ pub fn test_runner(tests: &[&dyn Testable]) { // slice of trait object
 #[cfg(test)]
 #[no_mangle] // 不要重命名函数的名称
 pub extern "C" fn _start() -> ! { // 所有 library crate 中的单元测试入口
-
+    init();
+    
     serial_println!("Start unittests for lib.");
 
     test_main();
@@ -75,6 +78,10 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     loop {}
 }
 
+
+pub fn init() { // init os
+    interrupts::init_idt();
+}
 
 
 
