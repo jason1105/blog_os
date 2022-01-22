@@ -11,6 +11,8 @@ volatile = "0.2.6" # used for memory-map access
 spin = "0.5.2"     # spinning mutex lock
 x86_64 = "0.14.2"  # invoking assembly instructions
 uart_16550 = "0.2.0" # Universal asynchronous receiver-transmitter
+pic8259 = "0.10.1" # Progrmmable Interrupt Controller
+pc-keyboard = "0.5.0"
 
 [dependencies.lazy_static]
 version = "1.0"

@@ -143,7 +143,12 @@ macro_rules! print {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    WRITER.lock().write_fmt(args).unwrap();
+    //WRITER.lock().write_fmt(args).unwrap();
+    use x86_64::instructions::interrupts;   // new
+
+    interrupts::without_interrupts(|| {     // new
+        WRITER.lock().write_fmt(args).unwrap();
+    });
 }
 
 
@@ -162,15 +167,16 @@ fn test_many_simple() {
 #[test_case]
 fn test_println_output() {
     let s = "Some test string that fits on a single line";
-    println!("{}", s);
-}
+    
+    use x86_64::instructions::interrupts;   // new
+    use core::fmt::Write;
 
-#[test_case]
-fn test_println_output2() {
-    let s = "Some test string that fits on a single line";
-    println!("{}", s);
-    for (i, c) in s.chars().enumerate() {
-        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
-        assert_eq!(char::from(screen_char.ascii_character), c);
-    }
+    interrupts::without_interrupts(|| {     // new
+        let mut writer = WRITER.lock();
+        writeln!(writer, "\n{}", s).expect("writeln failed");
+        for (i, c) in s.chars().enumerate() {
+            let screen_char = writer.buffer.chars[BUFFER_HEIGHT-2][i].read();
+            assert_eq!(char::from(screen_char.ascii_character), c);
+        }
+    });
 }

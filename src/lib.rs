@@ -53,6 +53,27 @@ pub fn test_runner(tests: &[&dyn Testable]) { // slice of trait object
     exit_qemu(QemuExitCode::Success);
 }
 
+pub fn test_panic_handler(info: &PanicInfo) -> ! {
+    serial_println!("[failed]\n");
+    serial_println!("Error: {}\n", info);
+    exit_qemu(QemuExitCode::Failed);
+    hlt_loop();
+}
+
+
+pub fn init() { // init os
+    interrupts::init_idt();
+    gdt::init();
+    unsafe { interrupts::PICS.lock().initialize() };
+    x86_64::instructions::interrupts::enable();
+}
+
+pub fn hlt_loop() -> ! {
+    loop{
+        x86_64::instructions::hlt();
+    }
+}
+
 #[cfg(test)]
 #[no_mangle] // 不要重命名函数的名称
 pub extern "C" fn _start() -> ! { // 所有 library crate 中的单元测试入口
@@ -62,7 +83,7 @@ pub extern "C" fn _start() -> ! { // 所有 library crate 中的单元测试入�
 
     test_main();
     
-    loop {}
+    hlt_loop();
 }
 
 #[cfg(test)]
@@ -71,21 +92,9 @@ fn panic(_info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("{}", _info);
     exit_qemu(QemuExitCode::Failed);
-    loop {}
+    hlt_loop();
 }
 
-pub fn test_panic_handler(info: &PanicInfo) -> ! {
-    serial_println!("[failed]\n");
-    serial_println!("Error: {}\n", info);
-    exit_qemu(QemuExitCode::Failed);
-    loop {}
-}
-
-
-pub fn init() { // init os
-    interrupts::init_idt();
-    gdt::init();
-}
 
 
 

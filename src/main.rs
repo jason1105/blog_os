@@ -17,14 +17,14 @@ use blog_os::serial_println; // 引用宏不用包含 module 名称
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     println!("{}", _info);
-    loop {}
+    blog_os::hlt_loop();
 }
 
 #[cfg(test)]
 #[panic_handler] // conditional compilation
 fn panic(_info: &PanicInfo) -> ! {
     blog_os::test_panic_handler(_info);
-    loop {}
+    // loop {}
 }
 
 #[no_mangle] // 不要重命名函数的名称
@@ -33,23 +33,6 @@ pub extern "C" fn _start() -> ! { // cargo run 和 cargo test 都会进入这里
     
     // init os
     blog_os::init();
-
-    // 触发一个 page fault exception, 这会调用 IDT 的 handler, 
-    // 但我们并没有定义相应的 handler, 导致调用失败, 会触发 double faults
-    // unsafe {
-        // *(0xdeadbeef as *mut u64) = 12;
-    // }
-    
-    // 触发 stack overflow
-    // 此时堆栈溢出, 导致 page fault 异常, 查找 IDT 调用相应的 page fault handler
-    // 但是, 由于堆栈指针指向的是 guard page, 所以 page fault handler 也无法运行, 再次产生 page fault 异常. 
-    // 上面两个连续的异常满足触发 double fault 的条件, 触发 double fault, 调用相应的 double fault handler.
-    // 同样由于堆栈指针指向的是 guard page, 导致 double fault handler 无法运行. 从而触发 triple faullt, 系统重启.
-    // fn stack_overflow() {
-        // stack_overflow();
-    // }
-    
-    // stack_overflow();
     
     #[cfg(test)]
     {
@@ -58,7 +41,16 @@ pub extern "C" fn _start() -> ! { // cargo run 和 cargo test 都会进入这里
     }
     
     println!("It did not crash!");
-    loop {}
+    
+    //loop {
+        
+        //use blog_os::print;
+        //for _ in 0..30000 {}
+        //print!("-");
+        
+        blog_os::hlt_loop();
+        
+    //}
 }
 #[test_case]
 fn trivial_assertion() {
