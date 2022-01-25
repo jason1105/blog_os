@@ -30,27 +30,33 @@ fn panic(_info: &PanicInfo) -> ! {
 #[no_mangle] // 不要重命名函数的名称
 pub extern "C" fn _start() -> ! { // cargo run 和 cargo test 都会进入这里
     println!("Hello world!");
-    
+
     // init os
     blog_os::init();
-    
+
     #[cfg(test)]
     {
         serial_println!("Start unittests for main!");
         test_main(); // binary crate 单元测试入口
     }
-    
+
     println!("It did not crash!");
+
+    // cause a page fault
+    // let num = 0xdeadbeaf as *mut u8;
+    // unsafe {
+        // *num = 1;        
+    // }
+
+    // CR3 is a register that physical address of level 4 page tables saved in it 
+    use x86_64::registers::control::Cr3;
+
+    let (frame, flags) = Cr3::read();
+    println!("CR3 frame: {:?}", frame);
+    println!("CR3 flags: {:?}", flags);
     
-    //loop {
-        
-        //use blog_os::print;
-        //for _ in 0..30000 {}
-        //print!("-");
-        
-        blog_os::hlt_loop();
-        
-    //}
+    blog_os::hlt_loop();
+
 }
 #[test_case]
 fn trivial_assertion() {

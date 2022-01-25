@@ -32,7 +32,15 @@ extern "x86-interrupt" fn breakpoint_handler (stack_frame: InterruptStackFrame) 
 }
 
 extern "x86-interrupt" fn pagefault_handler (stack_frame: InterruptStackFrame, _error_code: PageFaultErrorCode) {
-    println!("EXCEPTION: PAGEFAULT\n{:#?}", stack_frame);
+    
+    use x86_64::registers::control::Cr2;
+    use crate::hlt_loop;
+
+    println!("EXCEPTION: PAGE FAULT");
+    println!("Accessed Address: {:?}", Cr2::read());
+    println!("Error Code: {:?}", _error_code);
+    println!("{:#?}", stack_frame);
+    hlt_loop();
 }
 
 // double fault 的 handler
