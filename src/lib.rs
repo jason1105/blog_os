@@ -13,6 +13,7 @@ pub mod vga_buffer; // 其中标记有 #[test_case] 的 module 都会被测试
 pub mod serial; // 其中标记有 #[test_case] 的 module 都会被测试
 pub mod interrupts;
 pub mod gdt;
+pub mod memory; // new
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -53,6 +54,10 @@ pub fn test_runner(tests: &[&dyn Testable]) { // slice of trait object
     exit_qemu(QemuExitCode::Success);
 }
 
+pub fn testfn() {
+    
+}
+
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
@@ -75,8 +80,15 @@ pub fn hlt_loop() -> ! {
 }
 
 #[cfg(test)]
-#[no_mangle] // 不要重命名函数的名称
-pub extern "C" fn _start() -> ! { // 所有 library crate 中的单元测试入口
+use bootloader::{entry_point, BootInfo};
+
+#[cfg(test)]
+entry_point!(test_kernel_main);
+
+#[cfg(test)]
+// #[no_mangle] // 不要重命名函数的名称
+// pub extern "C" fn _start() -> ! { // 所有 library crate 中的单元测试入口
+fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
     init();
     
     serial_println!("Start unittests for lib.");
