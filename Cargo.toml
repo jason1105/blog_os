@@ -13,6 +13,7 @@ x86_64 = "0.14.2"  # invoking assembly instructions
 uart_16550 = "0.2.0" # Universal asynchronous receiver-transmitter
 pic8259 = "0.10.1" # Progrmmable Interrupt Controller
 pc-keyboard = "0.5.0"
+linked_list_allocator = "0.9.0" # 先使用一个定义好的内存分配器
 
 [dependencies.lazy_static]
 version = "1.0"
@@ -32,7 +33,7 @@ test-success-exit-code = 33         # (0x10 << 1) | 1
 
 [[test]]
 name = "should_panic"
-harness = false
+harness = false # 不使用测试框架
 
 [[test]]
 name = "stack_overflow"
