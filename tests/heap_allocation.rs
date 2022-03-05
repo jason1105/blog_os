@@ -11,6 +11,7 @@ use blog_os::memory::{self, BootInfoFrameAllocator};
 use x86_64::VirtAddr;
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
+use blog_os::allocator::HEAP_SIZE;
 
 // tests 文件夹中的文件只有在 cargo test 中执行
 entry_point!(main);
@@ -57,16 +58,22 @@ fn large_vec() {
     assert_eq!(vec.iter().sum::<u64>(), (n - 1) * n / 2);
 }
 
-use alloc::vec::Vec;
+#[test_case]
+fn many_boxes_long_lived() {
+    for i in 0..HEAP_SIZE {
+        let x = Box::new(i);
+        assert_eq!(*x, i);
+    }
+}
 
 #[test_case]
-fn large_vec() {
-    let n = 1000;
-    let mut vec = Vec::new();
-    for i in 0..n {
-        vec.push(i);
+fn many_box_long_lived() {
+    let long_lived = Box::new(1);
+    for i in 0..HEAP_SIZE {
+        let x = Box::new(i);
+        assert_eq!(*x, i);
     }
-    assert_eq!(vec.iter().sum::<u64>(), (n - 1) * n / 2);
+    assert_eq!(*long_lived, 1);
 }
 
 #[panic_handler]

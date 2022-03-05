@@ -1,0 +1,183 @@
+use alloc::alloc::{GlobalAlloc, Layout};
+use super::Locked;
+use crate::println;
+use crate::serial_print;
+
+#[derive(Debug)]
+struct ListNode {
+    addr: usize,
+    size: usize,
+    next: usize
+}
+
+pub struct ListAllocator {
+    heap_start: usize,
+    heap_end: usize,
+    head: usize,
+}
+
+impl ListAllocator {
+    pub const fn new() -> Self {
+        ListAllocator {
+            heap_start: 0,
+            heap_end: 0,
+            head: 0,
+        }
+    }
+    
+    pub unsafe fn init(&mut self, heap_start: usize, heap_size: usize) {
+        self.heap_start = heap_start;
+        self.heap_end = heap_start + heap_size;
+        self.head = heap_start;
+        
+        let head_node = &mut *(self.head as *mut ListNode);
+        head_node.addr = self.head;
+        head_node.size = heap_size;
+        head_node.next = self.head; // point to itself
+        serial_print!("heap start at: {:?}\n", head_node);
+    }
+    
+    // unsafe fn head_node(&self) -> &mut ListNode {
+        // &mut *(self.head as *mut ListNode)
+    // }
+}
+
+
+unsafe impl GlobalAlloc  for Locked<ListAllocator> {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        // use crate::allocator::align_up;
+        use core::ptr;
+        
+        let mut list_allocator = self.lock();
+
+        let allo_size = layout.size();
+        
+        let mut prev_node:Option<&mut ListNode> = None;
+        let mut curr_node = &mut *(list_allocator.head as *mut ListNode); // 前置节点
+
+        // println!("{}", list_allocator.head());
+
+        let mut new_node;
+
+        loop {
+            serial_print!("curr_node: {:?}\n", curr_node);
+            serial_print!("allo_size: {}\n", allo_size);
+            if curr_node.size > allo_size {
+                let new_node_addr = curr_node.addr + allo_size;
+                new_node = &mut *(new_node_addr as *mut ListNode);
+                new_node.addr = new_node_addr;
+                new_node.next = curr_node.next;
+                new_node.size = curr_node.size - allo_size;
+                
+                match prev_node {
+                    Some(ref mut prev_node) => {
+                        prev_node.next = new_node_addr;
+                        serial_print!("new_node: {:?}\n", new_node);
+                    },
+                    None => list_allocator.head = new_node_addr
+                }
+                
+                serial_print!("return {}\n", curr_node.addr);
+                
+                return curr_node.addr as *mut u8;
+                
+            } else {
+                let next_node_addr = curr_node.next;
+                prev_node = Some(curr_node);
+                curr_node = &mut *(next_node_addr as *mut ListNode);
+            }
+
+        }
+    }
+    
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let mut list_allocator = self.lock();
+        let mut curr_node = &mut *(list_allocator.head as *mut ListNode);
+        let mut prev_node = ListNode {
+                                addr: 0,
+                                size: 0,
+                                next: list_allocator.head
+                            };
+                            
+        loop {
+            if curr_node.addr > ptr as usize {
+                let dealloc_node_addr = ptr as usize; // 
+                let dealloc_node = &mut *(dealloc_node_addr as *mut ListNode);
+                dealloc_node.addr = dealloc_node_addr;
+                dealloc_node.size = layout.size();
+                dealloc_node.next = curr_node.addr;
+                
+                // |                |\\\\\\\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|              |
+                // |   prev_node    |\\\\dealloc_node\\\\|\\\\\other_node\\\\\|  curr_node   |
+                // |                |\\\\\\\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|              |
+                //  ↓↓↓↓↓
+                // |                                     |\\\\\\\\\\\\\\\\\\\\|              |
+                // |   prev_node    +   dealloc_node     |\\\\\other_node\\\\\|  curr_node   |
+                // |                                     |\\\\\\\\\\\\\\\\\\\\|              |
+                if prev_node.addr + prev_node.size == dealloc_node_addr 
+                    && dealloc_node_addr + layout.size() < curr_node.addr {
+                    // combine to region
+                    prev_node.size = prev_node.size + dealloc_node.size;
+                    return;
+                }
+
+                // |                |\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|              |
+                // |   prev_node    |\\other_node\\|\\\\dealloc_node\\\\|\\\\\other_node\\\\\|  curr_node   |
+                // |                |\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|              |
+                //  ↓↓↓↓↓
+                // |                |\\\\\\\\\\\\\\|                    |\\\\\\\\\\\\\\\\\\\\|              |
+                // |   prev_node    |\\other_node\\|    dealloc_node    |\\\\\other_node\\\\\|  curr_node   |
+                // |                |\\\\\\\\\\\\\\|                    |\\\\\\\\\\\\\\\\\\\\|              |
+
+                else if dealloc_node_addr > prev_node.addr 
+                    && dealloc_node_addr + layout.size() < curr_node.addr {
+                    prev_node.next = dealloc_node_addr;
+                    dealloc_node.next = curr_node.addr;
+                    return;
+                }
+                
+                // |                |\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|              |
+                // |   prev_node    |\\other_node\\|\\\\\other_node\\\\\|\\\\dealloc_node\\\\|  curr_node   |
+                // |                |\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|              |
+                //  ↓↓↓↓↓
+                // |                |\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|                                   |
+                // |   prev_node    |\\other_node\\|\\\\\other_node\\\\\|     dealloc_node +  curr_node     |
+                // |                |\\\\\\\\\\\\\\|\\\\\\\\\\\\\\\\\\\\|                                   |
+
+                else if dealloc_node_addr > prev_node.addr 
+                    && dealloc_node_addr + layout.size() == curr_node.addr {
+                    prev_node.next = dealloc_node_addr;
+                    dealloc_node.size = layout.size() + curr_node.size;
+                    dealloc_node.next = curr_node.next;
+                    return;
+                }
+                // |                |\\\\\\\\\\\\\\\\\\\\|              |
+                // |   prev_node    |\\\\dealloc_node\\\\|  curr_node   |
+                // |                |\\\\\\\\\\\\\\\\\\\\|              |
+                //  ↓↓↓↓↓             
+                // |                                                    |
+                // |   prev_node  +  dealloc_node + curr_node           |
+                // |                                                    |
+                else if prev_node.addr + prev_node.size == dealloc_node_addr
+                    && dealloc_node_addr + layout.size() == curr_node.addr {
+                    prev_node.size = prev_node.size + dealloc_node.size + curr_node.size;
+                    prev_node.next = curr_node.next;
+                    return;
+                } else {
+                    panic!("Deallocate failed. address: {}, layout: {:?}", ptr as usize, layout);
+                }
+                
+                curr_node = &mut *(curr_node.addr as *mut ListNode);
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+

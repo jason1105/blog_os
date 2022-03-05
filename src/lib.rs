@@ -5,6 +5,7 @@
 #![reexport_test_harness_main = "test_main"] // Rust 生成一个 main 方法调用 test_runner, 但我们的程序不使用 main 函数, 所以只能在 _start 中调用 main 函数, 但 main 函数是被系统调用的, 这里把 main 改名为 test_main, 在 test_main 中调用 test_runner, 但程序的入口还是 _start, 所以要在 _start 中调用 test_main
 #![feature(abi_x86_interrupt)] // 开启x86-interrupt calling convention, 因为is still unstable
 #![feature(alloc_error_handler)]
+#![feature(const_mut_refs)] // new 允许在常量方法中使用可变引用
 
 #![allow(warnings)]
 
