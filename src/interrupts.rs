@@ -1,19 +1,18 @@
-
-
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
-use lazy_static::lazy_static;
-use crate::println;
-use crate::print;
 use crate::gdt;
+use crate::print;
+use crate::println;
+use crate::task::keyboard::add_scancode;
+use lazy_static::lazy_static;
 use pic8259::ChainedPics;
 use spin;
 
 lazy_static! {
     pub static ref IDT: InterruptDescriptorTable = {
         let mut idt_temp = InterruptDescriptorTable::new();
-        
-        // 在 IDT 中注册 handler 
+
+        // 在 IDT 中注册 handler
         idt_temp.breakpoint.set_handler_fn(breakpoint_handler);
         idt_temp.page_fault.set_handler_fn(pagefault_handler);
         unsafe {
@@ -27,14 +26,16 @@ lazy_static! {
     };
 }
 
-extern "x86-interrupt" fn breakpoint_handler (stack_frame: InterruptStackFrame) {
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
 
-extern "x86-interrupt" fn pagefault_handler (stack_frame: InterruptStackFrame, _error_code: PageFaultErrorCode) {
-    
-    use x86_64::registers::control::Cr2;
+extern "x86-interrupt" fn pagefault_handler(
+    stack_frame: InterruptStackFrame,
+    _error_code: PageFaultErrorCode,
+) {
     use crate::hlt_loop;
+    use x86_64::registers::control::Cr2;
 
     println!("EXCEPTION: PAGE FAULT");
     println!("Accessed Address: {:?}", Cr2::read());
@@ -44,9 +45,10 @@ extern "x86-interrupt" fn pagefault_handler (stack_frame: InterruptStackFrame, _
 }
 
 // double fault 的 handler
-extern "x86-interrupt" fn doublefault_handler (
-    stack_frame: InterruptStackFrame, _error_code: u64) -> !
-{
+extern "x86-interrupt" fn doublefault_handler(
+    stack_frame: InterruptStackFrame,
+    _error_code: u64,
+) -> ! {
     panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
 }
 
@@ -75,39 +77,27 @@ impl InterruptIndex {
 }
 
 // Our timer_interrupt_handler has the same signature as our exception handlers, because the CPU reacts identically to exceptions and external interrupts
-extern "x86-interrupt" fn timer_interrupt_handler (_stack_frame: InterruptStackFrame) {
+extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     print!(".");
-    
+
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
     }
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler (_stack_frame: InterruptStackFrame) {
-    
-    use x86_64::instructions::port::Port;
+extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
     use spin::Mutex;
-    
-    lazy_static! {
-       static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> = Mutex::new(Keyboard::new(layouts::Us104Key, ScancodeSet1, HandleControl::Ignore));
-    }
-    
+    use x86_64::instructions::port::Port;
+
     let mut port = Port::<u8>::new(0x60);
     let scancode: u8 = unsafe { port.read() };
 
-    let mut keyboard = KEYBOARD.lock();
-    
-    if let Ok(Some(key_eveny)) = keyboard.add_byte(scancode) {
-        if let Some(key) = keyboard.process_keyevent(key_eveny) {
-            match key {
-                DecodedKey::RawKey(key) => print!("{:?}", key),
-                DecodedKey::Unicode(character) => print!("{}", character),
-            }
-        }
-    }
-    
+    add_scancode(scancode);
+
+    // print!("push scancode: {:?}", scancode);
+
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::KeyBoard.as_u8());
